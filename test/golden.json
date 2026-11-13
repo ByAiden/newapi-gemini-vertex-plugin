@@ -1,0 +1,542 @@
+{
+  "cases": [
+    {
+      "name": "veo submits to us-central1 with the mapped model",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "requestBody": {
+            "prompt": "A boat",
+            "resolution": "720p",
+            "metadata": {
+              "generateAudio": false
+            },
+            "duration": 4,
+            "model": "veo-3.1-lite-generate-001"
+          },
+          "requestHeaders": {
+            "Content-Type": "application/json",
+            "Accept": ""
+          },
+          "action": "text_to_video",
+          "model": "video",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "apiKey": "test-key",
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {},
+          "files": [],
+          "publicTaskId": "task_public",
+          "auth": {
+            "projectId": "proj-1"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://us-central1-aiplatform.googleapis.com/v1/projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001:predictLongRunning",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer ya29.test",
+          "x-goog-user-project": "proj-1"
+        },
+        "body": {
+          "instances": [
+            {
+              "prompt": "A boat"
+            }
+          ],
+          "parameters": {
+            "generateAudio": false,
+            "resolution": "720p",
+            "durationSeconds": 4,
+            "aspectRatio": "16:9",
+            "sampleCount": 1
+          }
+        },
+        "action": "text_to_video"
+      }
+    },
+    {
+      "name": "veo reserves seconds, resolution and audio",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "requestBody": {
+            "prompt": "A boat",
+            "resolution": "720p",
+            "metadata": {
+              "generateAudio": false
+            },
+            "duration": 4,
+            "model": "veo-3.1-lite-generate-001"
+          },
+          "requestHeaders": {
+            "Content-Type": "application/json",
+            "Accept": ""
+          },
+          "action": "text_to_video",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "apiKey": "test-key",
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {},
+          "files": [],
+          "publicTaskId": "task_public",
+          "auth": {
+            "projectId": "proj-1"
+          }
+        }
+      ],
+      "expected": {
+        "seconds": 4,
+        "resolution": "720p",
+        "generate_audio": false
+      }
+    },
+    {
+      "name": "veo fast rejects 4k",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "requestBody": {
+            "prompt": "x",
+            "resolution": "4k",
+            "model": "veo-3.1-fast-generate-001"
+          },
+          "requestHeaders": {
+            "Content-Type": "application/json",
+            "Accept": ""
+          },
+          "action": "text_to_video",
+          "model": "veo-3.1-fast-generate-001",
+          "upstreamModel": "veo-3.1-fast-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "apiKey": "test-key",
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {},
+          "files": [],
+          "publicTaskId": "task_public",
+          "auth": {
+            "projectId": "proj-1"
+          }
+        }
+      ],
+      "expectedError": "720p, 1080p"
+    },
+    {
+      "name": "a failed sign-in stops the submit",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "requestBody": {
+            "prompt": "A boat",
+            "resolution": "720p",
+            "metadata": {
+              "generateAudio": false
+            },
+            "duration": 4,
+            "model": "veo-3.1-lite-generate-001"
+          },
+          "requestHeaders": {
+            "Content-Type": "application/json",
+            "Accept": ""
+          },
+          "action": "text_to_video",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "apiKey": "test-key",
+          "authHeader": "Bearer test-key",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {},
+          "files": [],
+          "publicTaskId": "task_public",
+          "authError": "token exchange failed"
+        }
+      ],
+      "expectedError": "token exchange failed"
+    },
+    {
+      "name": "veo keeps the operation name",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "requestBody": {
+            "prompt": "A boat",
+            "resolution": "720p",
+            "metadata": {
+              "generateAudio": false
+            },
+            "duration": 4,
+            "model": "veo-3.1-lite-generate-001"
+          },
+          "requestHeaders": {
+            "Content-Type": "application/json",
+            "Accept": ""
+          },
+          "action": "text_to_video",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "apiKey": "test-key",
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {},
+          "files": [],
+          "publicTaskId": "task_public",
+          "auth": {
+            "projectId": "proj-1"
+          }
+        },
+        {
+          "statusCode": 200,
+          "headers": {},
+          "body": {
+            "name": "projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001/operations/op-1"
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "cHJvamVjdHMvcHJvai0xL2xvY2F0aW9ucy91cy1jZW50cmFsMS9wdWJsaXNoZXJzL2dvb2dsZS9tb2RlbHMvdmVvLTMuMS1saXRlLWdlbmVyYXRlLTAwMS9vcGVyYXRpb25zL29wLTE",
+        "taskData": {
+          "name": "projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001/operations/op-1"
+        }
+      }
+    },
+    {
+      "name": "veo polls fetchPredictOperation",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "taskId": "cHJvamVjdHMvcHJvai0xL2xvY2F0aW9ucy91cy1jZW50cmFsMS9wdWJsaXNoZXJzL2dvb2dsZS9tb2RlbHMvdmVvLTMuMS1saXRlLWdlbmVyYXRlLTAwMS9vcGVyYXRpb25zL29wLTE",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "auth": {
+            "projectId": "proj-1"
+          },
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {}
+        }
+      ],
+      "expected": {
+        "url": "https://us-central1-aiplatform.googleapis.com/v1/projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001:fetchPredictOperation",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer ya29.test",
+          "x-goog-user-project": "proj-1"
+        },
+        "body": {
+          "operationName": "projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001/operations/op-1"
+        }
+      }
+    },
+    {
+      "name": "veo running operation is in progress",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "taskId": "cHJvamVjdHMvcHJvai0xL2xvY2F0aW9ucy91cy1jZW50cmFsMS9wdWJsaXNoZXJzL2dvb2dsZS9tb2RlbHMvdmVvLTMuMS1saXRlLWdlbmVyYXRlLTAwMS9vcGVyYXRpb25zL29wLTE",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "auth": {
+            "projectId": "proj-1"
+          },
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {}
+        },
+        {
+          "name": "projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001/operations/op-1"
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "50%"
+      }
+    },
+    {
+      "name": "veo unrecognized reply is UNKNOWN",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "taskId": "cHJvamVjdHMvcHJvai0xL2xvY2F0aW9ucy91cy1jZW50cmFsMS9wdWJsaXNoZXJzL2dvb2dsZS9tb2RlbHMvdmVvLTMuMS1saXRlLWdlbmVyYXRlLTAwMS9vcGVyYXRpb25zL29wLTE",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "auth": {
+            "projectId": "proj-1"
+          },
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {}
+        },
+        {},
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized operation state"
+      }
+    },
+    {
+      "name": "veo safety block fails the task",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "taskId": "cHJvamVjdHMvcHJvai0xL2xvY2F0aW9ucy91cy1jZW50cmFsMS9wdWJsaXNoZXJzL2dvb2dsZS9tb2RlbHMvdmVvLTMuMS1saXRlLWdlbmVyYXRlLTAwMS9vcGVyYXRpb25zL29wLTE",
+          "model": "veo-3.1-lite-generate-001",
+          "upstreamModel": "veo-3.1-lite-generate-001",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "auth": {
+            "projectId": "proj-1"
+          },
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {}
+        },
+        {
+          "name": "projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001/operations/op-1",
+          "done": true,
+          "response": {
+            "raiMediaFilteredCount": 1,
+            "raiMediaFilteredReasons": [
+              "blocked"
+            ]
+          }
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "blocked"
+      }
+    },
+    {
+      "name": "veo lists the inline video",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "name": "projects/proj-1/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001/operations/op-1",
+            "done": true,
+            "response": {
+              "videos": [
+                {
+                  "mimeType": "video/mp4"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "video",
+          "type": "video",
+          "mimeType": "video/mp4"
+        }
+      ]
+    },
+    {
+      "name": "omni runs on the global Interactions endpoint",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "requestBody": {
+            "prompt": "A boat",
+            "resolution": "360p",
+            "duration": 3,
+            "model": "gemini-omni-1.2-flash"
+          },
+          "requestHeaders": {
+            "Content-Type": "application/json",
+            "Accept": ""
+          },
+          "action": "text_to_video",
+          "model": "gemini-omni-1.2-flash",
+          "upstreamModel": "gemini-omni-1.2-flash",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "apiKey": "test-key",
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {},
+          "files": [],
+          "publicTaskId": "task_public",
+          "auth": {
+            "projectId": "proj-1"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://aiplatform.googleapis.com/v1beta1/projects/proj-1/locations/global/interactions",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer ya29.test",
+          "x-goog-user-project": "proj-1"
+        },
+        "body": {
+          "model": "gemini-omni-1.2-flash",
+          "input": [
+            {
+              "type": "text",
+              "text": "A boat"
+            }
+          ],
+          "response_format": {
+            "type": "video",
+            "aspect_ratio": "16:9",
+            "resolution": "360p",
+            "duration": "3s"
+          },
+          "background": true,
+          "store": true,
+          "generation_config": {
+            "video_config": {
+              "task": "text_to_video"
+            }
+          }
+        },
+        "action": "text_to_video"
+      }
+    },
+    {
+      "name": "omni unknown state is UNKNOWN",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "taskId": "int_1",
+          "model": "gemini-omni-1.2-flash",
+          "upstreamModel": "gemini-omni-1.2-flash",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "auth": {
+            "projectId": "proj-1"
+          },
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {}
+        },
+        {
+          "object": "interaction",
+          "status": "requires_action"
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized interaction state"
+      }
+    },
+    {
+      "name": "omni settles on reported usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "taskId": "int_1",
+          "model": "gemini-omni-1.2-flash",
+          "upstreamModel": "gemini-omni-1.2-flash",
+          "baseUrl": "https://aiplatform.googleapis.com",
+          "auth": {
+            "projectId": "proj-1"
+          },
+          "authHeader": "Bearer ya29.test",
+          "upstream": {
+            "kind": "vendor"
+          },
+          "config": {}
+        },
+        {},
+        {
+          "id": "v1_abc",
+          "object": "interaction",
+          "status": "completed",
+          "usage": {
+            "total_input_tokens": 14,
+            "output_tokens_by_modality": [
+              {
+                "modality": "video",
+                "tokens": 5793
+              }
+            ],
+            "total_thought_tokens": 535
+          },
+          "steps": [
+            {
+              "type": "user_input",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "x"
+                }
+              ]
+            },
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "video",
+                  "mime_type": "video/mp4",
+                  "data": "AAAA"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "input_tokens": 14,
+        "output_tokens": 535,
+        "video_tokens": 5793
+      }
+    }
+  ]
+}
