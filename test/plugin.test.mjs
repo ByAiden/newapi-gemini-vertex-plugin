@@ -55,8 +55,8 @@ test("meta is a plain JSON literal with a neutral key", () => {
   assert.ok(block);
   const json = block[1].replace(/^\s*\/\/[^\n]*\n/gm, "").replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":').replace(/,(\s*[}\]])/g, "$1");
   assert.deepEqual(JSON.parse(json), meta);
-  assert.equal(meta.key, "gemini-vertex");
-  assert.equal(meta.version, "1.0.0");
+  assert.equal(meta.key, "byaiden_gemini_vertex");
+  assert.equal(meta.version, "1.1.0");
   assert.equal(meta.channelTypes, undefined);
   assert.equal(meta.baseUrl, BASE);
   assert.equal(meta.author.url, "https://github.com/" + meta.author.name);
@@ -233,7 +233,7 @@ test("credentials: auth errors and missing projects stop the submit", () => {
 
 test("through another New API gateway Veo goes under the plugin key, Omni is refused", () => {
   const veo = buildSubmitRequest(ctxFor(decode({ model: "veo-3.1-generate-001", prompt: "x" }), { baseUrl: "https://up.example", authHeader: "Bearer sk-up", upstream: { kind: "new_api" }, auth: {} }));
-  assert.equal(veo.url, "https://up.example/gemini-vertex/v1/projects/-/locations/us-central1/publishers/google/models/veo-3.1-generate-001:predictLongRunning");
+  assert.equal(veo.url, "https://up.example/byaiden_gemini_vertex/v1/projects/-/locations/us-central1/publishers/google/models/veo-3.1-generate-001:predictLongRunning");
   assert.equal(veo.headers["x-goog-user-project"], undefined);
   assert.throws(() => buildSubmitRequest(ctxFor(decode({ model: "gemini-omni-1.2-flash", prompt: "x" }), { upstream: { kind: "new_api" } })), /not available through a New API gateway/);
 });

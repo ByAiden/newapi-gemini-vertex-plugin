@@ -13,7 +13,7 @@ locale: zh-CN
 ## 渠道设置
 
 1. 在 Google Cloud 项目里启用 Vertex AI API，创建一个带 Vertex AI User 角色的服务账号，下载它的密钥 JSON。
-2. 安装插件后，新建渠道，类型选 Task Plugin，绑定插件 `gemini-vertex`。
+2. 安装插件后，新建渠道，类型选 Task Plugin，绑定插件 `byaiden_gemini_vertex`。
 3. 密钥：粘贴完整的服务账号密钥 JSON。网关用它登录并缓存访问令牌，请求在密钥里的 `project_id` 项目下执行。
 4. Base URL：留空即使用 `https://aiplatform.googleapis.com`。Veo 固定在 `us-central1` 运行（Vertex 只在这个区域提供 Veo 3.1），Gemini Omni 固定在 `global` 运行。
 5. 模型：按需填写 `veo-3.1-generate-001`、`veo-3.1-fast-generate-001`、`veo-3.1-lite-generate-001` 和 `gemini-omni-1.2-flash`。模型要被已启用的渠道列出，才会出现在价格页面。

@@ -15,7 +15,7 @@ Requires new-api v1.0.0-rc.50 or later.
 ## Channel setup
 
 1. In Google Cloud, enable the Vertex AI API on a project, create a service account with the Vertex AI User role, and download its key JSON.
-2. Install the plugin, then add a channel of type Task Plugin and bind it to `gemini-vertex`.
+2. Install the plugin, then add a channel of type Task Plugin and bind it to `byaiden_gemini_vertex`.
 3. Key: paste the whole service account key JSON. The gateway signs in with it and caches the access token; requests run in the key's `project_id`.
 4. Base URL: leave empty for `https://aiplatform.googleapis.com`. Veo runs in `us-central1`, the only region Vertex offers Veo 3.1 in; Gemini Omni runs in `global`.
 5. Models: `veo-3.1-generate-001`, `veo-3.1-fast-generate-001`, `veo-3.1-lite-generate-001` and `gemini-omni-1.2-flash`, as you offer them. A model appears on the pricing pages only after an enabled channel lists it.

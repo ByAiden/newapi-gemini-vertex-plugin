@@ -1,13 +1,13 @@
 export const meta = {
   apiVersion: 1,
-  key: "gemini-vertex",
+  key: "byaiden_gemini_vertex",
   name: "Veo 3.1 & Gemini Omni (Vertex AI)",
   icon: "VertexAI.Color",
   description: {
     en: "Veo 3.1 and Gemini Omni Flash video generation (text-to-video and image-to-video) on Vertex AI with a service account",
     zh: "Veo 3.1 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 服务账号版本",
   },
-  version: "1.0.0",
+  version: "1.1.0",
   author: { name: "ByAiden", url: "https://github.com/ByAiden" },
   website: "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate",
   baseUrl: "https://aiplatform.googleapis.com",

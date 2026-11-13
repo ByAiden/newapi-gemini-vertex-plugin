@@ -1,13 +1,13 @@
 ---
 changelogVersion: 1
-plugin: gemini-vertex
-version: 1.0.0
+plugin: byaiden_gemini_vertex
+version: 1.1.0
 locale: "zh-CN"
 ---
 
 # Changelog
 
-## [1.0.0]
+## [1.1.0]
 
 ### Added
 
