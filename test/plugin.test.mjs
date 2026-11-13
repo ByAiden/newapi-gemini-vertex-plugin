@@ -56,7 +56,7 @@ test("meta is a plain JSON literal with a neutral key", () => {
   const json = block[1].replace(/^\s*\/\/[^\n]*\n/gm, "").replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":').replace(/,(\s*[}\]])/g, "$1");
   assert.deepEqual(JSON.parse(json), meta);
   assert.equal(meta.key, "byaiden_gemini_vertex");
-  assert.equal(meta.version, "1.1.0");
+  assert.equal(meta.version, "1.1.1");
   assert.equal(meta.channelTypes, undefined);
   assert.equal(meta.baseUrl, BASE);
   assert.equal(meta.author.url, "https://github.com/" + meta.author.name);
@@ -242,4 +242,13 @@ test("a mapped alias sends the upstream model name", () => {
   const intent = decode({ model: "video", prompt: "x" }, "video");
   const request = buildSubmitRequest(ctxFor(intent, { model: "video", upstreamModel: "veo-3.1-lite-generate-001" }));
   assert.match(request.url, /models\/veo-3\.1-lite-generate-001:predictLongRunning$/);
+});
+
+test("code never references meta, so the gateway can read it statically", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../plugin.js", import.meta.url), "utf8");
+  const rest = src.slice(src.indexOf("\n};\n", src.indexOf("export const meta = {")));
+  assert.doesNotMatch(rest, /(^|[^A-Za-z0-9_$.])meta([^A-Za-z0-9_$]|$)/m);
+  assert.ok(rest.includes(JSON.stringify(meta.key)));
+  assert.ok(rest.includes(JSON.stringify(meta.models)));
 });

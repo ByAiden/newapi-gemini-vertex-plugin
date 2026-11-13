@@ -7,7 +7,7 @@ export const meta = {
     en: "Veo 3.1 and Gemini Omni Flash video generation (text-to-video and image-to-video) on Vertex AI with a service account",
     zh: "Veo 3.1 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 服务账号版本",
   },
-  version: "1.1.0",
+  version: "1.1.1",
   author: { name: "ByAiden", url: "https://github.com/ByAiden" },
   website: "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate",
   baseUrl: "https://aiplatform.googleapis.com",
@@ -76,6 +76,10 @@ export const meta = {
     "openai_video",
   ],
 };
+
+// The gateway reads the manifest statically, so the code below uses these copies of its values.
+const PLUGIN_KEY = "byaiden_gemini_vertex";
+const MODEL_IDS = ["veo-3.1-generate-001","veo-3.1-fast-generate-001","veo-3.1-lite-generate-001","gemini-omni-1.2-flash"];
 
 // Veo 3.1 on Vertex AI: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate
 // The GA models run in us-central1, take 4, 6 or 8 seconds, and only the
@@ -239,7 +243,7 @@ function veoAudio(req) {
 }
 
 function modelURL(ctx, project, location, model, method) {
-  let base = baseUrl(ctx) + (viaGateway(ctx) ? "/" + meta.key : "");
+  let base = baseUrl(ctx) + (viaGateway(ctx) ? "/" + PLUGIN_KEY : "");
   if (!viaGateway(ctx) && base === DEFAULT_BASE && location !== "global") base = "https://" + location + "-aiplatform.googleapis.com";
   return base + "/v1/projects/" + project + "/locations/" + location + "/publishers/google/models/" + model + ":" + method;
 }
@@ -438,7 +442,7 @@ function omniSettlement(body) {
 
 export function buildSubmitRequest(ctx) {
   if (omniModel(ctx)) return omniSubmitRequest(ctx);
-  if (!VEO_RESOLUTIONS[modelOf(ctx)]) throw new Error("unsupported model; use " + meta.models.join(", "));
+  if (!VEO_RESOLUTIONS[modelOf(ctx)]) throw new Error("unsupported model; use " + MODEL_IDS.join(", "));
   return veoSubmitRequest(ctx);
 }
 
@@ -693,7 +697,7 @@ export const protocols = {
       const output = {
         id: task.task_id,
         object: "video",
-        model: (task.properties || {}).origin_model_name || meta.models[0],
+        model: (task.properties || {}).origin_model_name || MODEL_IDS[0],
         status: statuses[task.status] || "unknown",
         progress: Number(String(task.progress || "0").replace("%", "")),
         created_at: task.created_at,
