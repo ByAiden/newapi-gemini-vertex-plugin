@@ -19,7 +19,7 @@ Requires new-api v1.0.0-rc.50 or later.
 3. Key: paste the whole service account key JSON. The gateway signs in with it and caches the access token; requests run in the key's `project_id`.
 4. Base URL: leave empty for `https://aiplatform.googleapis.com`. Veo runs in `us-central1`, the only region Vertex offers Veo 3.1 in; Gemini Omni runs in `global`.
 5. Models: `veo-3.1-generate-001`, `veo-3.1-fast-generate-001`, `veo-3.1-lite-generate-001` and `gemini-omni-1.2-flash`, as you offer them. A model appears on the pricing pages only after an enabled channel lists it.
-6. To use another New API gateway as the upstream, add a New API channel with that gateway's address and token and bind this plugin; that gateway needs the plugin too. Only Veo works this way.
+6. To use another New API gateway as the upstream, see Through another New API gateway below.
 
 ## Models and endpoints
 
@@ -89,6 +89,15 @@ curl https://your-gateway.example.com/v1/videos/{task_id} \
 curl -o video.mp4 https://your-gateway.example.com/v1/videos/{task_id}/content \
   -H "Authorization: Bearer $NEWAPI_TOKEN"
 ```
+
+## Through another New API gateway
+
+A second gateway can sell these models through yours. Install this plugin, 1.2.0 or later, on both gateways:
+
+- On the gateway that calls Vertex AI, set up the channel above with the service account key JSON.
+- On the other gateway, create a **New API** channel (type 60). Its base URL is the first gateway's address and its key is a token from the first gateway, not a service account key. Pick `byaiden_gemini_vertex` under Upstream task plugins and add the models.
+
+The outer gateway sends Veo and Gemini Omni requests to the first gateway's `POST /v1/videos` with the token as a Bearer key, polls `GET /v1/videos/{id}` there and downloads from `GET /v1/videos/{id}/content`; the client can use `/v1/videos` or `/v1/responses` on the outer gateway. Veo sends its duration, resolution and audio setting explicitly, so both gateways charge the same seconds, resolution and audio facts. A finished Gemini Omni video object on the first gateway carries the billed `usage` (`input_tokens`, `output_tokens`, `video_tokens`), which the outer gateway settles on, so the expressions above work on both. Against a first gateway older than 1.2.0, Gemini Omni on the outer gateway keeps the reserved video tokens and bills no input or text output tokens.
 
 ## Limits
 

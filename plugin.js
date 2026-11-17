@@ -7,7 +7,7 @@ export const meta = {
     en: "Veo 3.1 and Gemini Omni Flash video generation (text-to-video and image-to-video) on Vertex AI with a service account",
     zh: "Veo 3.1 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 服务账号版本",
   },
-  version: "1.1.1",
+  version: "1.2.0",
   author: { name: "ByAiden", url: "https://github.com/ByAiden" },
   website: "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate",
   baseUrl: "https://aiplatform.googleapis.com",
@@ -78,7 +78,6 @@ export const meta = {
 };
 
 // The gateway reads the manifest statically, so the code below uses these copies of its values.
-const PLUGIN_KEY = "byaiden_gemini_vertex";
 const MODEL_IDS = ["veo-3.1-generate-001","veo-3.1-fast-generate-001","veo-3.1-lite-generate-001","gemini-omni-1.2-flash"];
 
 // Veo 3.1 on Vertex AI: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate
@@ -133,7 +132,7 @@ function projectId(ctx) {
 function requestHeaders(ctx) {
   if (ctx.authError) throw new Error(ctx.authError);
   const headers = { "Content-Type": "application/json", Accept: "application/json", Authorization: ctx.authHeader };
-  if (!viaGateway(ctx)) headers["x-goog-user-project"] = projectId(ctx);
+  headers["x-goog-user-project"] = projectId(ctx);
   return headers;
 }
 
@@ -243,8 +242,8 @@ function veoAudio(req) {
 }
 
 function modelURL(ctx, project, location, model, method) {
-  let base = baseUrl(ctx) + (viaGateway(ctx) ? "/" + PLUGIN_KEY : "");
-  if (!viaGateway(ctx) && base === DEFAULT_BASE && location !== "global") base = "https://" + location + "-aiplatform.googleapis.com";
+  let base = baseUrl(ctx);
+  if (base === DEFAULT_BASE && location !== "global") base = "https://" + location + "-aiplatform.googleapis.com";
   return base + "/v1/projects/" + project + "/locations/" + location + "/publishers/google/models/" + model + ":" + method;
 }
 
@@ -273,8 +272,7 @@ function veoSubmitRequest(ctx) {
   }
   // Credentials are checked after the request, so a bad request says why.
   const headers = requestHeaders(ctx);
-  // A gateway runs the request in its own project, so the path names none.
-  const project = viaGateway(ctx) ? "-" : projectId(ctx);
+  const project = projectId(ctx);
   return {
     url: modelURL(ctx, project, region(ctx), modelOf(ctx), "predictLongRunning"),
     method: "POST",
@@ -327,7 +325,6 @@ function veoTaskResult(body) {
 // Omni runs through the Interactions API on the global endpoint and returns
 // the video inline in the interaction.
 function interactionsURL(ctx, interactionId) {
-  if (viaGateway(ctx)) throw new Error("Gemini Omni is not available through a New API gateway");
   const url = baseUrl(ctx) + "/v1beta1/projects/" + projectId(ctx) + "/locations/global/interactions";
   return interactionId ? url + "/" + encodeURIComponent(interactionId) : url;
 }
@@ -438,16 +435,102 @@ function omniSettlement(body) {
   return facts;
 }
 
+// ---- Through another New API gateway ----
+// That gateway serves Veo and Gemini Omni on its OpenAI video endpoint with
+// its own credentials, so the request goes there as an OpenAI video request
+// carrying the checked fields. Its video object (with the gateway's own task
+// id) is polled, the video is downloaded from its content address, and its
+// usage field holds the Gemini Omni facts that gateway settled on.
+
+function gatewayVideoURL(ctx, taskId) {
+  const url = trimmed(ctx.baseUrl).replace(/\/+$/, "") + "/v1/videos";
+  return taskId ? url + "/" + encodeURIComponent(taskId) : url;
+}
+
+function gatewayHeaders(ctx) {
+  return { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey };
+}
+
+function isGatewayVideo(body) {
+  return plainObject(body) !== null && body.object === "video";
+}
+
+// Uploaded files stay host placeholders, which the host fills with base64.
+function gatewayImages(ctx, list) {
+  return list.map(function (image) {
+    inputImage(ctx, image);
+    return plainObject(image) && image.__fileRef ? image : trimmed(image);
+  });
+}
+
+function gatewaySubmitRequest(ctx) {
+  const req = ctx.requestBody || {};
+  const list = images(req);
+  const omni = omniModel(ctx);
+  if (omni && list.length > MAX_OMNI_IMAGES) throw new Error("Gemini Omni takes at most " + MAX_OMNI_IMAGES + " images");
+  if (!omni && list.length > 2) throw new Error("Veo takes at most 2 images: the first and last frame");
+  if (!trimmed(req.prompt) && !list.length) throw new Error("prompt is required");
+  const body = { model: modelOf(ctx) };
+  if (omni) {
+    body.seconds = omniSeconds(req);
+    body.resolution = omniResolution(req);
+  } else {
+    // The Veo parameters go out explicitly, so both gateways price the same video.
+    const params = veoParameters(req);
+    delete params.resolution;
+    params.generateAudio = veoAudio(req);
+    body.seconds = veoSeconds(req);
+    body.resolution = veoResolution(ctx, req);
+    body.metadata = params;
+  }
+  if (trimmed(req.prompt)) body.prompt = req.prompt;
+  if (req.size !== undefined && req.size !== null && req.size !== "") body.size = req.size;
+  if (list.length) body.images = gatewayImages(ctx, list);
+  return { url: gatewayVideoURL(ctx), method: "POST", headers: gatewayHeaders(ctx), body: body, action: list.length ? "image_to_video" : "text_to_video" };
+}
+
+function gatewayTaskResult(body) {
+  body = plainObject(body) || {};
+  const status = trimmed(body.status).toLowerCase();
+  const value = Number(body.progress);
+  const progress = Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) + "%" : undefined;
+  if (status === "completed") return { status: "SUCCESS", progress: "100%" };
+  if (status === "failed") {
+    const error = plainObject(body.error) || {};
+    return { status: "FAILURE", progress: "100%", reason: trimmed(error.message) || "task failed" };
+  }
+  if (status === "queued") return { status: "QUEUED", progress: progress || "0%" };
+  if (status === "in_progress") return progress ? { status: "IN_PROGRESS", progress: progress } : { status: "IN_PROGRESS" };
+  return { status: "UNKNOWN", reason: "unrecognized video status: " + (status || "none") };
+}
+
+// The Gemini Omni facts the other gateway settled on; missing or malformed
+// ones keep the reservation. Veo is charged as requested on both gateways.
+function gatewaySettlement(body) {
+  const usage = plainObject(body && body.usage);
+  if (!usage) return null;
+  const facts = {};
+  for (const key of ["input_tokens", "output_tokens", "video_tokens"]) {
+    if (Number.isInteger(usage[key]) && usage[key] >= 0) facts[key] = usage[key];
+  }
+  return Object.keys(facts).length ? facts : null;
+}
+
 // ---- Driver hooks ----
 
 export function buildSubmitRequest(ctx) {
-  if (omniModel(ctx)) return omniSubmitRequest(ctx);
-  if (!VEO_RESOLUTIONS[modelOf(ctx)]) throw new Error("unsupported model; use " + MODEL_IDS.join(", "));
-  return veoSubmitRequest(ctx);
+  if (!omniModel(ctx) && !VEO_RESOLUTIONS[modelOf(ctx)]) throw new Error("unsupported model; use " + MODEL_IDS.join(", "));
+  if (viaGateway(ctx)) return gatewaySubmitRequest(ctx);
+  return omniModel(ctx) ? omniSubmitRequest(ctx) : veoSubmitRequest(ctx);
 }
 
 export function parseSubmitResponse(ctx, resp) {
   const body = plainObject(resp.body) || {};
+  if (viaGateway(ctx)) {
+    const id = trimmed(body.id);
+    if (!id) throw new Error("the gateway response is missing the video id");
+    return { taskId: id, taskData: body };
+  }
   if (omniModel(ctx)) {
     const id = trimmed(body.id);
     if (!id) throw new Error("Gemini Omni response is missing the interaction id");
@@ -468,17 +551,20 @@ export function extractUsage(ctx) {
 
 // Veo is charged as requested; Omni settles on reported usage.
 export function extractUsageOnComplete(task, _result, data) {
+  if (isGatewayVideo(data)) return omniModel(task) ? gatewaySettlement(data) : null;
   if (omniModel(task) || isInteraction(data)) return omniSettlement(data);
   return null;
 }
 
 export function buildQueryRequest(ctx) {
+  if (viaGateway(ctx)) return { url: gatewayVideoURL(ctx, ctx.taskId), method: "GET", headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey } };
   if (ctx.authError) throw new Error(ctx.authError);
   if (omniModel(ctx)) return { url: interactionsURL(ctx, ctx.taskId), method: "GET", headers: requestHeaders(ctx) };
   return fetchOperation(ctx, utils.base64URLDecode(ctx.taskId));
 }
 
 export function parseTaskResult(ctx, body) {
+  if (viaGateway(ctx) || isGatewayVideo(body)) return gatewayTaskResult(body);
   if (omniModel(ctx) || isInteraction(body)) return omniTaskResult(body);
   return veoTaskResult(body);
 }
@@ -487,6 +573,7 @@ export function parseTaskResult(ctx, body) {
 // media type, so a download fetches the operation or interaction again.
 export function listArtifacts(task) {
   if (task.status !== "SUCCESS") return [];
+  if (isGatewayVideo(task.data)) return [{ key: "video", type: "video", mimeType: "video/mp4" }];
   if (isInteraction(task.data)) {
     const omni = omniVideo(task.data);
     return omni ? [{ key: "video", type: "video", mimeType: omni.mimeType }] : [];
@@ -497,8 +584,17 @@ export function listArtifacts(task) {
 }
 
 export function buildContentRequest(ctx) {
-  if (ctx.authError) throw new Error(ctx.authError);
   if (ctx.artifactKey !== "video") throw new Error("artifact_not_found");
+  // Another gateway serves the video at the content address of its task.
+  if (viaGateway(ctx)) {
+    if (!trimmed(ctx.upstreamTaskId)) throw new Error("artifact_not_found");
+    return {
+      url: gatewayVideoURL(ctx, ctx.upstreamTaskId) + "/content",
+      method: ctx.clientRequest && ctx.clientRequest.method === "HEAD" ? "HEAD" : "GET",
+      headers: { Authorization: "Bearer " + ctx.apiKey },
+    };
+  }
+  if (ctx.authError) throw new Error(ctx.authError);
   if (isInteraction(ctx.data)) {
     const omni = omniVideo(ctx.data);
     if (!omni) throw new Error("artifact_not_found");
@@ -509,16 +605,6 @@ export function buildContentRequest(ctx) {
       responseType: "json",
       contentPath: omni.path,
       mimeType: omni.mimeType,
-    };
-  }
-  // Another gateway serves the video as the artifact of its task, the last
-  // segment of the operation.
-  if (viaGateway(ctx)) {
-    const taskId = utils.base64URLDecode(ctx.upstreamTaskId).split("/").pop();
-    return {
-      url: baseUrl(ctx) + "/v1/tasks/" + encodeURIComponent(taskId) + "/artifacts/video/content",
-      method: ctx.clientRequest.method,
-      headers: { Authorization: "Bearer " + ctx.apiKey },
     };
   }
   return Object.assign(fetchOperation(ctx, utils.base64URLDecode(ctx.upstreamTaskId)), {
@@ -704,6 +790,9 @@ export const protocols = {
       };
       if (Number(task.finish_time) > 0) output.completed_at = Number(task.finish_time);
       else if (Number(task.updated_at) > 0) output.completed_at = Number(task.updated_at);
+      // The billed Gemini Omni usage facts, which a gateway in front of this one settles on.
+      const usage = task.status === "SUCCESS" && isInteraction(task.data) ? omniSettlement(task.data) : null;
+      if (usage && Object.keys(usage).length) output.usage = usage;
       return output;
     },
   },

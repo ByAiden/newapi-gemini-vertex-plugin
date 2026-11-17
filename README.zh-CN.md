@@ -17,7 +17,7 @@ locale: zh-CN
 3. 密钥：粘贴完整的服务账号密钥 JSON。网关用它登录并缓存访问令牌，请求在密钥里的 `project_id` 项目下执行。
 4. Base URL：留空即使用 `https://aiplatform.googleapis.com`。Veo 固定在 `us-central1` 运行（Vertex 只在这个区域提供 Veo 3.1），Gemini Omni 固定在 `global` 运行。
 5. 模型：按需填写 `veo-3.1-generate-001`、`veo-3.1-fast-generate-001`、`veo-3.1-lite-generate-001` 和 `gemini-omni-1.2-flash`。模型要被已启用的渠道列出，才会出现在价格页面。
-6. 如果上游是另一台 New API 网关，新建 New API 渠道，填该网关的地址和令牌并绑定本插件，上游网关也需要安装本插件。这种方式只支持 Veo。
+6. 如果上游是另一台 New API 网关，见下文「经由另一个 New API 网关」。
 
 ## 模型与接口
 
@@ -87,6 +87,15 @@ curl https://your-gateway.example.com/v1/videos/{task_id} \
 curl -o video.mp4 https://your-gateway.example.com/v1/videos/{task_id}/content \
   -H "Authorization: Bearer $NEWAPI_TOKEN"
 ```
+
+## 经由另一个 New API 网关
+
+另一个网关可以通过你的网关转售这些模型。两边都安装本插件 1.2.0 或更高版本：
+
+- 直接调用 Vertex AI 的网关：按上文配置渠道，密钥填服务账号密钥 JSON。
+- 另一个网关创建 **New API** 渠道（类型 60）：Base URL 填第一个网关的地址，密钥填第一个网关的令牌（不是服务账号密钥），在「上游任务插件」中选择 `byaiden_gemini_vertex`，并添加模型。
+
+外层网关把 Veo 和 Gemini Omni 请求发到第一个网关的 `POST /v1/videos`，令牌作 Bearer 密钥，在那里的 `GET /v1/videos/{id}` 查询，从 `GET /v1/videos/{id}/content` 下载；客户端在外层可以用 `/v1/videos` 或 `/v1/responses`。Veo 显式发送时长、分辨率和音频设置，所以两层按相同的秒数、分辨率和音频收费。第一个网关完成的 Gemini Omni 视频对象带有计费用的 `usage`（`input_tokens`、`output_tokens`、`video_tokens`），外层据此结算，所以上面的表达式在两层都适用。如果第一个网关的插件早于 1.2.0，外层的 Gemini Omni 保持预扣的视频 token，不收输入和文本输出 token。
 
 ## 限制
 

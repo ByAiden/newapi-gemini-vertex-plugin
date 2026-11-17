@@ -56,7 +56,8 @@ test("meta is a plain JSON literal with a neutral key", () => {
   const json = block[1].replace(/^\s*\/\/[^\n]*\n/gm, "").replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":').replace(/,(\s*[}\]])/g, "$1");
   assert.deepEqual(JSON.parse(json), meta);
   assert.equal(meta.key, "byaiden_gemini_vertex");
-  assert.equal(meta.version, "1.1.1");
+  assert.ok(readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8").includes("\nversion: " + meta.version + "\n"));
+  assert.deepEqual(meta.upstreams, ["vendor", "new_api"]);
   assert.equal(meta.channelTypes, undefined);
   assert.equal(meta.baseUrl, BASE);
   assert.equal(meta.author.url, "https://github.com/" + meta.author.name);
@@ -231,11 +232,68 @@ test("credentials: auth errors and missing projects stop the submit", () => {
   assert.throws(() => decode({ model: "veo-3.1-generate-001", prompt: "x", seconds: -1 }), /positive/);
 });
 
-test("through another New API gateway Veo goes under the plugin key, Omni is refused", () => {
-  const veo = buildSubmitRequest(ctxFor(decode({ model: "veo-3.1-generate-001", prompt: "x" }), { baseUrl: "https://up.example", authHeader: "Bearer sk-up", upstream: { kind: "new_api" }, auth: {} }));
-  assert.equal(veo.url, "https://up.example/byaiden_gemini_vertex/v1/projects/-/locations/us-central1/publishers/google/models/veo-3.1-generate-001:predictLongRunning");
+test("through another New API gateway Veo goes to its OpenAI video endpoint with a Bearer token", () => {
+  const gw = { baseUrl: "https://up.example", apiKey: "sk-up", authHeader: "Bearer sk-up", upstream: { kind: "new_api" }, auth: {} };
+  const ctx = deepFreeze(ctxFor(decode({ model: "veo-3.1-generate-001", prompt: "x", seconds: 4, size: "1920x1080", metadata: { generateAudio: false, negativePrompt: "rain" } }), gw));
+  const veo = buildSubmitRequest(ctx);
+  assert.equal(veo.url, "https://up.example/v1/videos");
+  assert.deepEqual(veo.headers, { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer sk-up" });
+  // Every price fact goes out explicitly, so both gateways bill the same video.
+  assert.deepEqual(veo.body, { model: "veo-3.1-generate-001", seconds: 4, resolution: "1080p", metadata: { negativePrompt: "rain", generateAudio: false }, prompt: "x", size: "1920x1080" });
+  assert.deepEqual(extractUsage(ctx), { seconds: 4, resolution: "1080p", generate_audio: false });
+  const again = decode(veo.body);
+  assert.deepEqual(extractUsage(ctxFor(again)), extractUsage(ctx));
+
+  const created = { id: "task_up1", object: "video", model: "veo-3.1-generate-001", status: "queued", progress: 0 };
+  assert.deepEqual(parseSubmitResponse(ctx, deepFreeze({ statusCode: 200, body: created })), { taskId: "task_up1", taskData: created });
+  const query = deepFreeze({ taskId: "task_up1", model: "veo-3.1-generate-001", upstreamModel: "veo-3.1-generate-001", baseUrl: "https://up.example", apiKey: "sk-up", authHeader: "Bearer sk-up", auth: {}, upstream: { kind: "new_api" } });
+  assert.deepEqual(buildQueryRequest(query), { url: "https://up.example/v1/videos/task_up1", method: "GET", headers: { Accept: "application/json", Authorization: "Bearer sk-up" } });
+  assert.deepEqual(parseTaskResult(query, { ...created, status: "in_progress", progress: 50 }), { status: "IN_PROGRESS", progress: "50%" });
+  assert.deepEqual(parseTaskResult(query, { ...created, status: "failed", error: { message: "blocked" } }), { status: "FAILURE", progress: "100%", reason: "blocked" });
+  const finished = deepFreeze({ ...created, status: "completed", progress: 100 });
+  assert.deepEqual(parseTaskResult(query, finished), { status: "SUCCESS", progress: "100%" });
+  // Veo is charged as requested on both gateways.
+  assert.equal(extractUsageOnComplete(query, {}, finished), null);
+  assert.deepEqual(listArtifacts({ status: "SUCCESS", data: finished }), [{ key: "video", type: "video", mimeType: "video/mp4" }]);
+  assert.deepEqual(buildContentRequest(Object.assign({}, query, { artifactKey: "video", data: finished, upstreamTaskId: "task_up1", clientRequest: { method: "GET" } })), {
+    url: "https://up.example/v1/videos/task_up1/content",
+    method: "GET",
+    headers: { Authorization: "Bearer sk-up" },
+  });
+});
+
+test("through another New API gateway the service account is not used and the project is not needed", () => {
+  const gw = { baseUrl: "https://up.example", apiKey: "sk-up", authHeader: "Bearer sk-up", upstream: { kind: "new_api" }, auth: {} };
+  const veo = buildSubmitRequest(ctxFor(decode({ model: "veo-3.1-fast-generate-001", prompt: "x", input_reference: PNG }), gw));
   assert.equal(veo.headers["x-goog-user-project"], undefined);
-  assert.throws(() => buildSubmitRequest(ctxFor(decode({ model: "gemini-omni-1.2-flash", prompt: "x" }), { upstream: { kind: "new_api" } })), /not available through a New API gateway/);
+  assert.equal(veo.headers.Authorization, "Bearer sk-up");
+  assert.deepEqual(veo.body.images, [PNG]);
+  assert.equal(veo.action, "image_to_video");
+  assert.equal(veo.body.metadata.generateAudio, true);
+  assert.throws(() => buildSubmitRequest(ctxFor(decode({ model: "veo-3.1-fast-generate-001", prompt: "x", resolution: "4k" }), gw)), /720p, 1080p/);
+  assert.throws(() => buildSubmitRequest(ctxFor(decode({ model: "veo-3.1-generate-001", prompt: "x", images: [PNG, JPEG, PNG + "A"] }), gw)), /at most 2 images/);
+});
+
+test("through another New API gateway Omni settles on the usage that gateway billed", () => {
+  const gw = { baseUrl: "https://up.example", apiKey: "sk-up", authHeader: "Bearer sk-up", upstream: { kind: "new_api" }, auth: {} };
+  const files = [{ field: "input_reference", mimeType: "image/jpeg", ref: "request_file:input_reference" }];
+  const intent = protocols.openai_video.decodeRequest({
+    model: "gemini-omni-1.2-flash",
+    body: { kind: "multipart", fields: { prompt: ["animate"], seconds: ["5"], size: ["720x1280"] }, files: files },
+  });
+  const request = buildSubmitRequest(ctxFor(intent, Object.assign({ files: files }, gw)));
+  assert.equal(request.url, "https://up.example/v1/videos");
+  assert.equal(request.body.images[0].__fileRef, "request_file:input_reference");
+  assert.equal(request.body.seconds, 5);
+  assert.equal(request.body.resolution, "720p");
+  const query = { taskId: "task_up2", model: "gemini-omni-1.2-flash", upstreamModel: "gemini-omni-1.2-flash", baseUrl: "https://up.example", apiKey: "sk-up", upstream: { kind: "new_api" } };
+  const finished = { id: "task_up2", object: "video", status: "completed", progress: 100, usage: { input_tokens: 14, output_tokens: 535, video_tokens: 5793 } };
+  assert.deepEqual(parseTaskResult(query, finished), { status: "SUCCESS", progress: "100%" });
+  assert.deepEqual(extractUsageOnComplete(query, {}, finished), { input_tokens: 14, output_tokens: 535, video_tokens: 5793 });
+  assert.equal(extractUsageOnComplete(query, {}, { id: "task_up2", object: "video", status: "completed" }), null);
+  const view = { task_id: "task_pub", status: "SUCCESS", progress: "100%", data: DONE, properties: { origin_model_name: "gemini-omni-1.2-flash" } };
+  assert.deepEqual(Object.keys(protocols.openai_video.render({}, view).usage).sort(), ["input_tokens", "output_tokens", "video_tokens"]);
+  assert.deepEqual(protocols.openai_video.render({}, view).usage, extractUsageOnComplete({ model: "gemini-omni-1.2-flash" }, {}, DONE));
 });
 
 test("a mapped alias sends the upstream model name", () => {
@@ -249,6 +307,5 @@ test("code never references meta, so the gateway can read it statically", async 
   const src = readFileSync(new URL("../plugin.js", import.meta.url), "utf8");
   const rest = src.slice(src.indexOf("\n};\n", src.indexOf("export const meta = {")));
   assert.doesNotMatch(rest, /(^|[^A-Za-z0-9_$.])meta([^A-Za-z0-9_$]|$)/m);
-  assert.ok(rest.includes(JSON.stringify(meta.key)));
   assert.ok(rest.includes(JSON.stringify(meta.models)));
 });
